@@ -1,0 +1,23 @@
+
+:root{--primary:#0B3D91;--secondary:#00AEEF;--bg:#F4F6F8;--card:#fff;--text:#1E293B;--muted:#64748B;}
+*{box-sizing:border-box;}
+body{font-family:Montserrat,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;margin:0;}
+h1,h2,h3{font-family:Anton,sans-serif;letter-spacing:.02em;margin:0 0 1rem;line-height:1.15;}
+section{padding:4rem 1.5rem;}
+.max-w{max-width:1200px;margin:0 auto;}
+nav{background:#fff;padding:14px 1.5rem;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.08);display:flex;align-items:center;gap:12px;}
+.hero{background:linear-gradient(135deg,#002869 0%,#0B3D91 60%,#144fb5 100%);color:#fff;padding:5rem 1.5rem 4rem;position:relative;overflow:hidden;}
+.hero h1{font-size:clamp(2rem,6vw,4.5rem);text-transform:uppercase;}
+.hero h1 span{color:#00AEEF;text-shadow:0 0 30px rgba(0,174,239,.6);}
+.hero p{font-size:1.15rem;color:#cfe2ff;max-width:640px;margin-bottom:2rem;}
+.btn{display:inline-block;padding:.75rem 2rem;background:var(--secondary);color:#fff;text-transform:uppercase;font-weight:700;border-radius:.25rem;transition:.2s;box-shadow:0 4px 20px rgba(0,174,239,.4);text-decoration:none;font-size:.9rem;}
+.btn:hover{background:#0096ce;box-shadow:0 6px 28px rgba(0,174,239,.6);transform:translateY(-2px);}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;}
+.card{background:var(--card);border-radius:.5rem;padding:1.75rem;border:1px solid #E2E8F0;box-shadow:0 4px 14px rgba(0,0,0,.04);transition:.2s;}
+.card:hover{box-shadow:0 8px 24px rgba(11,61,145,.08);transform:translateY(-3px);border-color:#BFDBFE;}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;}
+input,select,textarea{width:100%;padding:.65rem .75rem;border:1px solid #CBD5E1;border-radius:.25rem;font-family:inherit;font-size:.95rem;}
+label{display:block;font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem;color:#334155;}
+.tag{display:inline-block;background:#E0F2FE;color:#0B3D91;font-size:.7rem;font-weight:700;text-transform:uppercase;padding:.25rem .6rem;border-radius:.25rem;margin-bottom:.5rem;}
+@media(max-width:768px){section{padding:2.5rem 1rem;} .hero{padding:3rem 1rem 2.5rem;} h1{font-size:2rem;}}
+nav img{max-height:55px!important;width:auto!important;max-width:220px!important;}
