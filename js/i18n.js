@@ -1,5 +1,5 @@
-// Complete RU/EN localization for the single-page site.
-const translations = {
+// Source strings and reviewed English translations. Other locales use Cloudflare Workers AI.
+const english = {
   "К содержимому": "Skip to content",
   "☰ Меню": "☰ Menu",
   "✕ Закрыть": "✕ Close",
@@ -130,62 +130,106 @@ const translations = {
   "LUXSTAR — поиск производителей в Китае, контроль качества и международная логистика.": "LUXSTAR — manufacturer sourcing in China, quality control and international logistics.",
   "LUXSTAR — ваш партнёр по закупкам в Китае": "LUXSTAR — your procurement partner in China"
 };
-const originalText = new WeakMap();
-const originalAttributes = new WeakMap();
-const translatedAttributes = ['placeholder', 'aria-label', 'title', 'content'];
-let siteLanguage = localStorage.getItem('luxstar-language') === 'en' ? 'en' : 'ru';
-const translate = value => translations[value] || value;
-function localizeNode(node) {
-  if (node.nodeType === Node.TEXT_NODE) {
-    if (!node.parentElement || ['SCRIPT', 'STYLE'].includes(node.parentElement.tagName)) return;
-    const value = node.nodeValue;
-    if (!originalText.has(node) && /[А-Яа-яЁё]/.test(value)) originalText.set(node, value);
-    const source = originalText.get(node);
-    if (!source) return;
-    const trimmed = source.trim();
-    const next = siteLanguage === 'en' ? translate(trimmed) : trimmed;
-    const result = source.replace(trimmed, next);
-    if (node.nodeValue !== result) node.nodeValue = result;
+const languageNames = {ru:'Русский',en:'English',de:'Deutsch',it:'Italiano',es:'Español',pt:'Português',ar:'العربية',tr:'Türkçe',zh:'中文',ja:'日本語',th:'ไทย'};
+const originals = new WeakMap();
+const attrOriginals = new WeakMap();
+const supported = Object.keys(languageNames);
+let language = supported.includes(localStorage.getItem('luxstar-language')) ? localStorage.getItem('luxstar-language') : 'ru';
+let revision = 0;
+let cache = {};
+try { cache = JSON.parse(localStorage.getItem('luxstar-translation-cache-v1') || '{}'); } catch { cache = {}; }
+const attrs = ['placeholder','aria-label','title','content'];
+const isSource = s => /[А-Яа-яЁё]/.test(s);
+function remember(node) {
+  if (node.nodeType === 3) {
+    if (node.parentElement && !['SCRIPT','STYLE'].includes(node.parentElement.tagName) && !node.parentElement.closest('.language-picker') && isSource(node.nodeValue) && !originals.has(node)) originals.set(node,node.nodeValue);
     return;
   }
-  if (node.nodeType !== Node.ELEMENT_NODE) return;
-  for (const attribute of translatedAttributes) {
-    if (!node.hasAttribute(attribute)) continue;
-    let origins = originalAttributes.get(node);
-    if (!origins) { origins = {}; originalAttributes.set(node, origins); }
-    if (!(attribute in origins)) origins[attribute] = node.getAttribute(attribute);
-    const source = origins[attribute];
-    const result = siteLanguage === 'en' ? translate(source) : source;
-    if (node.getAttribute(attribute) !== result) node.setAttribute(attribute, result);
+  if (node.nodeType !== 1) return;
+  const known = attrOriginals.get(node) || {};
+  for (const a of attrs) if (node.hasAttribute(a) && !(a in known)) known[a] = node.getAttribute(a);
+  attrOriginals.set(node,known);
+  for (const child of node.childNodes) remember(child);
+}
+function collect(node, values) {
+  if (node.nodeType === 3 && originals.has(node)) values.add(originals.get(node).trim());
+  else if (node.nodeType === 1) {
+    for (const value of Object.values(attrOriginals.get(node) || {})) if (isSource(value)) values.add(value);
+    for (const child of node.childNodes) collect(child,values);
   }
-  for (const child of node.childNodes) localizeNode(child);
 }
-function applySiteLanguage(lang) {
-  siteLanguage = lang === 'en' ? 'en' : 'ru';
-  document.documentElement.lang = siteLanguage;
-  localStorage.setItem('luxstar-language', siteLanguage);
-  document.querySelector('#site-language').value = siteLanguage;
-  localizeNode(document.documentElement);
+function valueFor(source) {
+  if (language === 'ru') return source;
+  if (language === 'en') return english[source] || source;
+  return cache[language + ':' + source] || english[source] || source;
 }
-const switcher = document.createElement('label');
-switcher.className = 'language-picker';
-switcher.innerHTML = '<span class="visually-hidden">Language / Язык</span><select id="site-language" aria-label="Language / Язык"><option value="ru">RU</option><option value="en">EN</option></select>';
-const header = document.querySelector('.header-inner');
-header.appendChild(switcher);
-switcher.querySelector('select').addEventListener('change', event => applySiteLanguage(event.target.value));
-applySiteLanguage(siteLanguage);
-// Messages from the existing contact form and responsive menu are inserted after load.
-const changes = new MutationObserver(entries => {
-  for (const entry of entries) {
-    if (entry.target.closest?.('.language-picker') || entry.target.parentElement?.closest('.language-picker')) continue;
-    if (entry.type === 'childList') {
-      for (const added of entry.addedNodes) localizeNode(added);
-    } else if (entry.type === 'characterData') {
-      const node = entry.target;
-      // Interactive UI may replace the text in an existing node.
-      if (node.nodeValue && /[А-Яа-яЁё]/.test(node.nodeValue)) originalText.set(node, node.nodeValue);
-      localizeNode(node);
+function paint(node) {
+  if (node.nodeType === 3 && originals.has(node)) {
+    const source = originals.get(node), trim = source.trim();
+    const result = source.replace(trim,valueFor(trim));
+    if (node.nodeValue !== result) node.nodeValue = result;
+  } else if (node.nodeType === 1) {
+    for (const [a,source] of Object.entries(attrOriginals.get(node) || {})) {
+      const result = valueFor(source);
+      if (node.getAttribute(a) !== result) node.setAttribute(a,result);
     }
+    for (const child of node.childNodes) paint(child);
   }
+}
+async function translateOne(lang,source) {
+  const key = lang + ':' + source;
+  if (cache[key]) return;
+  const response = await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:lang,text:english[source] || source,sourceLanguage:english[source] ? 'en':'ru'})});
+  if (!response.ok) throw new Error('Translation unavailable: ' + response.status);
+  const result = await response.json();
+  if (!result.translation) throw new Error('Empty translation');
+  cache[key] = result.translation;
+}
+async function applyLanguage(next) {
+  if (!supported.includes(next)) return;
+  language = next;
+  const token = ++revision;
+  document.documentElement.lang = language;
+  document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+  localStorage.setItem('luxstar-language',language);
+  selector.value = language;
+  remember(document.documentElement);
+  paint(document.documentElement);
+  if (language === 'en' || language === 'ru') return;
+  const values = new Set();
+  collect(document.documentElement,values);
+  const pending = [...values].filter(v => !cache[language + ':' + v]);
+  selector.disabled = true;
+  const status = document.getElementById('language-status');
+  status.textContent = pending.length ? '…' : '';
+  let cursor = 0, failures = 0;
+  const workers = Array.from({length:Math.min(6,pending.length)},async () => {
+    while (cursor < pending.length && token === revision) {
+      const source = pending[cursor++];
+      try { await translateOne(language,source); } catch { failures++; }
+      if (token === revision) paint(document.documentElement);
+    }
+  });
+  await Promise.all(workers);
+  if (token !== revision) return;
+  selector.disabled = false;
+  status.textContent = failures ? '⚠' : '';
+  try { localStorage.setItem('luxstar-translation-cache-v1',JSON.stringify(cache)); } catch {}
+}
+const wrapper = document.createElement('label');
+wrapper.className='language-picker';
+wrapper.innerHTML='<span class="visually-hidden">Language / Язык</span><select id="site-language" aria-label="Language / Язык"></select><span id="language-status" role="status" aria-live="polite"></span>';
+const selector = wrapper.querySelector('select');
+for (const [code,title] of Object.entries(languageNames)) selector.add(new Option(title,code));
+document.querySelector('.header-inner').appendChild(wrapper);
+selector.addEventListener('change',e=>applyLanguage(e.target.value));
+const observer = new MutationObserver(entries=>{
+  let changed=false;
+  for(const entry of entries) {
+    if(entry.target.parentElement?.closest('.language-picker') || entry.target.closest?.('.language-picker')) continue;
+    if(entry.type==='childList') { for(const node of entry.addedNodes) remember(node);changed=true; }
+    if(entry.type==='characterData' && entry.target.nodeValue && isSource(entry.target.nodeValue)) {originals.set(entry.target,entry.target.nodeValue);changed=true;}
+  }
+  if(changed) {paint(document.documentElement);if(language!=='ru'&&language!=='en') applyLanguage(language);}
 });
-changes.observe(document.body, { childList: true, characterData: true, subtree: true });
+applyLanguage(language).then(()=>observer.observe(document.body,{childList:true,characterData:true,subtree:true}));
